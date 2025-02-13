@@ -41,7 +41,6 @@ export default function RootLayout({
       <body
         className={sunflower.variable}>
           {!isProjectDetail && <Navbar />}
-          {isProjectDetail && <ProjectNavbar/>}
           <main>{children}</main>
       </body>
     </html>
