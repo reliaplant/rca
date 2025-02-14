@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import ReactFlow, {
     addEdge,
     Connection,
@@ -13,97 +13,147 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import CustomNode from './CustomNode';
+import { hierarchy, tree } from 'd3-hierarchy';
+import NodeInfo from './NodeInfo';
+import ZoomControl from './ZoomControl';
 
 const nodeTypes = {
     custom: CustomNode,
 };
 
-interface HandleCreateChildNodeParams {
-    nodes: Node[];
-    setNodes: React.Dispatch<React.SetStateAction<Node[]>>;
-    setEdges: React.Dispatch<React.SetStateAction<Edge[]>>;
-    parentId: string;
-    parentX: number;
-    parentY: number;
+interface CustomNodeData {
+    label: string;
+    childrenIds: string[];
+    tipo: 'Evento Tope' | 'Modo de falla' | 'Hipótesis' | 'Falla fisica' | 'Error humano' | 'Causa latente' | 'Accion Correctiva';
+    onCreateChild: (parentId: string, parentX: number, parentY: number) => void;
 }
 
-const handleCreateChildNode = ({ nodes, setNodes, setEdges, parentId, parentX, parentY }: HandleCreateChildNodeParams) => {
-    const newNodeId = (nodes.length + 1).toString();
-    const newNode: Node = {
-        id: newNodeId,
-        position: {
-            x: parentX - 100,
-            y: parentY + 200
-        },
-        data: {
-            label: `Nuevo Nodo`,
-        },
-        type: 'custom',
-    };
-
-    const newEdge: Edge = {
-        id: `e${parentId}-${newNodeId}`,
-        source: parentId,
-        target: newNodeId,
-    };
-
-    setNodes(prevNodes => prevNodes.concat(newNode));
-    setEdges(prevEdges => prevEdges.concat(newEdge));
-};
-
 function RCAArbolFlowComponent() {
-    const [initialNodes, setInitialNodes] = useState<Node[]>([]);
-    const initialEdges: Edge[] = [];
+    const nodeIdCounterRef = useRef(2);
+    const [nodes, setNodes, onNodesChange] = useNodesState([]);
+    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const organizingRef = useRef(false);
 
-    const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-    const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-    const { setViewport } = useReactFlow();
+    const organizeNodesWithD3 = useCallback(() => {
+        if (organizingRef.current) return;
+        organizingRef.current = true;
 
-    const MIN_Y = 0; // Minimum Y position allowed
+        setNodes(prevNodes => {
+            const rootNode = prevNodes.find(node => node.id === '1');
+            if (!rootNode) return prevNodes;
+
+            const makeHierarchy = (node: Node<CustomNodeData>): { id: string; children: any[] } => {
+                return {
+                    id: node.id,
+                    children: node.data.childrenIds
+                        .map(id => prevNodes.find(n => n.id === id))
+                        .filter(Boolean)
+                        .map(node => makeHierarchy(node as Node<CustomNodeData>))
+                };
+            };
+
+            const hierarchyData = hierarchy(makeHierarchy(rootNode));
+
+            // Reduce horizontal spacing (first parameter) while keeping vertical spacing (second parameter)
+            const treeLayout = tree<any>()
+                .nodeSize([120, 150]) // Increased from [100, 150] to [120, 150] for slightly more horizontal spacing
+                .separation((a, b) => {
+                    // If nodes have the same parent (are siblings), use slightly increased spacing
+                    // If they're cousins (different parents), use moderately increased spacing
+                    return a.parent === b.parent ? 1.2 : 1.2;
+                });
+
+            const treeData = treeLayout(hierarchyData);
+
+            const newNodes = prevNodes.map(node => {
+                const treeNode = treeData.descendants().find(n => n.data.id === node.id);
+                if (treeNode) {
+                    return {
+                        ...node,
+                        position: {
+                            x: node.id === '1'
+                                ? window.innerWidth / 2 - 100
+                                : treeNode.x + (window.innerWidth / 2 - 100),
+                            y: node.id === '1'
+                                ? 32
+                                : treeNode.y + 32
+                        }
+                    };
+                }
+                return node;
+            });
+
+            organizingRef.current = false;
+            return newNodes;
+        });
+    }, []);
 
     const handleCreateChildNode = useCallback((parentId: string, parentX: number, parentY: number) => {
-        const newNodeId = (nodes.length + 1).toString();
-        const newNode: Node = {
-            id: newNodeId,
-            position: {
-                x: parentX - 100,
-                y: parentY + 200
-            },
-            data: {
-                label: `Nuevo Nodo`,
-                onCreateChild: handleCreateChildNode  // <<-- Se pasa la función aquí
-            },
-            type: 'custom',
-        };
+        const newNodeId = nodeIdCounterRef.current.toString();
+        nodeIdCounterRef.current += 1;
 
-        const newEdge: Edge = {
+        setNodes(prevNodes => {
+            const parentNode = prevNodes.find(node => node.id === parentId);
+            if (!parentNode) return prevNodes;
+
+            const newNode: Node<CustomNodeData> = {
+                id: newNodeId,
+                position: { x: parentX - 100, y: parentY + 200 },
+                data: {
+                    label: `Nuevo Nodo`,
+                    childrenIds: [],
+                    tipo: parentNode.data.tipo === 'Evento Tope' ? 'Modo de falla' : 'Hipótesis',
+                    onCreateChild: handleCreateChildNode
+                },
+                type: 'custom',
+            };
+
+            return [...prevNodes.map(node =>
+                node.id === parentId
+                    ? {
+                        ...node,
+                        data: {
+                            ...node.data,
+                            childrenIds: [...node.data.childrenIds, newNodeId]
+                        }
+                    }
+                    : node
+            ), newNode];
+        });
+
+        setEdges(prevEdges => [...prevEdges, {
             id: `e${parentId}-${newNodeId}`,
             source: parentId,
             target: newNodeId,
-        };
+        }]);
 
-        setNodes(prevNodes => prevNodes.concat(newNode));
-        setEdges(prevEdges => prevEdges.concat(newEdge));
-    }, [nodes, setNodes, setEdges]);
+        // Delay organization to next frame
+        setTimeout(organizeNodesWithD3, 0);
+    }, []);
 
     useEffect(() => {
         if (typeof window !== 'undefined') {
             const centerX = window.innerWidth / 2;
             const centerY = window.innerHeight / 4;
 
-            const initialNode: Node = {
+            const initialNode: Node<CustomNodeData> = {
                 id: '1',
-                position: { x: centerX - 100, y: centerY },
+                position: {
+                    x: window.innerWidth / 2 - 100,
+                    y: 32  // 2rem to match organized position
+                },
                 data: {
                     label: 'Paros recurrentes en bombas',
+                    childrenIds: [],
+                    onCreateChild: handleCreateChildNode,
+                    tipo: 'Evento Tope'
                 },
                 type: 'custom',
             };
 
             setNodes([initialNode]);
         }
-    }, [setNodes]);
-
+    }, [handleCreateChildNode]);
 
     const onConnect = useCallback(
         (connection: Connection) => {
@@ -111,6 +161,9 @@ function RCAArbolFlowComponent() {
         },
         [setEdges]
     );
+
+    const { setViewport } = useReactFlow();
+    const MIN_Y = 0; // Define the minimum Y value
 
     const onMove: OnMove = useCallback(
         (_, viewport: Viewport) => {
@@ -135,7 +188,10 @@ function RCAArbolFlowComponent() {
     }, [nodes, setNodes]);
 
     return (
-        <div className="w-full h-screen bg-gray-300">
+        <div className="w-full h-screen bg-gray-100">
+            <div className="fixed left-0 top-14 h-full w-80 bg-white shadow-lg z-10 border-r border-gray-200">
+                <NodeInfo />
+            </div>
             <ReactFlow
                 nodes={nodes}
                 edges={edges}
@@ -152,6 +208,7 @@ function RCAArbolFlowComponent() {
                 nodesDraggable
                 elementsSelectable
             />
+            <ZoomControl />
         </div>
     );
 }

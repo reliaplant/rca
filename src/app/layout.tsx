@@ -1,15 +1,11 @@
 'use client'; // Indicamos que este componente usa funcionalidades del lado del cliente (ej. onClick)
 
-
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Sunflower } from "next/font/google";
+import { Geist, Geist_Mono, Sunflower, Zen_Dots } from "next/font/google";
 import "./globals.css";
 import { usePathname } from 'next/navigation';
 import Navbar from "@/components/Navbar";
 import ProjectNavbar from "@/components/ProjectNavBar";
-
-
-
 
 // Configuración de la fuente
 const sunflower = Sunflower({
@@ -28,6 +24,12 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const zenDots = Zen_Dots({
+  variable: "--font-zen-dots",
+  subsets: ["latin"],
+  weight: ["400"],
+});
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -38,10 +40,9 @@ export default function RootLayout({
 
   return (
     <html lang="en">
-      <body
-        className={sunflower.variable}>
-          {!isProjectDetail && <Navbar />}
-          <main>{children}</main>
+      <body className={`${sunflower.variable} ${geistSans.variable} ${geistMono.variable} ${zenDots.variable}`}>
+        {!isProjectDetail && <Navbar />}
+        <main>{children}</main>
       </body>
     </html>
   );

@@ -4,98 +4,93 @@ import RCAArbolFlow from '@/components/RCAArbolFlow';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useState } from 'react';
-import { HomeIcon, DocumentIcon, CheckCircleIcon, ClipboardDocumentListIcon, ShareIcon } from '@heroicons/react/24/outline';
+import { HomeIcon, DocumentIcon, CheckCircleIcon, ClipboardDocumentListIcon, ShareIcon, ChevronDownIcon, PrinterIcon } from '@heroicons/react/24/outline';
 
 export default function ProjectDetailPage() {
   const params = useParams();
   const projectId = params.projectId;
 
-  const [activeTab, setActiveTab] = useState<'info' | 'analisis' | 'evidencia' | 'soluciones' | 'tareas'>('analisis');
+  const [activeTab, setActiveTab] = useState<'info' | 'analisis' | 'soluciones' | 'tareas'>('analisis');
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-100">
-      <header className="bg-black shadow h-16">
-        <div className="flex items-center justify-between h-full">
-          <Link href="/proyectos" className="font-light hover:text-gray-400 p-4">
-            <button className="flex items-center text-white">
-              <svg
-                className="w-4 h-4 mr-2"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  d="M15 19l-7-7 7-7"
-                ></path>
-              </svg>
-              Volver al Dashboard
-            </button>
-          </Link>
-
-          <div className="flex-grow flex justify-center space-x-4 h-full">
-            <button
-              onClick={() => setActiveTab('info')}
-              className={`px-4 py-2 ${
-                activeTab === 'info' ? 'border-b-4 border-green-600 text-white' : 'text-gray-400'
-              } h-full flex flex-col items-center justify-center`}
-            >
-              <HomeIcon className="w-5 h-5 mb-1" />
-              <span className="text-xs">Info</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('analisis')}
-              className={`px-4 py-2 ${
-                activeTab === 'analisis' ? 'border-b-4 border-green-600 text-white' : 'text-gray-400'
-              } h-full flex flex-col items-center justify-center`}
-            >
-              <ShareIcon className="w-5 h-5 mb-1" />
-              <span className="text-xs">Análisis</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('evidencia')}
-              className={`px-4 py-2 ${
-                activeTab === 'evidencia' ? 'border-b-4 border-green-600 text-white' : 'text-gray-400'
-              } h-full flex flex-col items-center justify-center`}
-            >
-              <DocumentIcon className="w-5 h-5 mb-1" />
-              <span className="text-xs">Evidencia</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('soluciones')}
-              className={`px-4 py-2 ${
-                activeTab === 'soluciones' ? 'border-b-4 border-green-600 text-white' : 'text-gray-400'
-              } h-full flex flex-col items-center justify-center`}
-            >
-              <CheckCircleIcon className="w-5 h-5 mb-1" />
-              <span className="text-xs">Soluciones</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('tareas')}
-              className={`px-4 py-2 ${
-                activeTab === 'tareas' ? 'border-b-4 border-green-600 text-white' : 'text-gray-400'
-              } h-full flex flex-col items-center justify-center`}
-            >
-              <ClipboardDocumentListIcon className="w-5 h-5 mb-1" />
-              <span className="text-xs">Tareas</span>
-            </button>
+      <header className='bg-white text-black px-4 h-14 flex items-center border-b justify-between border-gray-200  sm:px-6 lg:px-4 w-full'>
+        <div className='flex items-center py-4 w-full'>
+          <div className="flex items-center">
+            <h1>RCA-P</h1>
+            <ChevronDownIcon className="w-3 h-3 ml-2" />
           </div>
-          <div className="text-white p-4">
-            foto de perfil
+          <div className="flex items-center ml-4 space-x-2 bg-gray-100 p-1 rounded">
+            {['info', 'analisis', 'soluciones', 'tareas'].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab as typeof activeTab)}
+                className={`px-2 py-1 rounded ${activeTab === tab
+                    ? 'bg-white border shadow-none border-gray-200 text-xs'
+                    : 'text-gray-400 text-xs'
+                  }`}
+              >
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </button>
+            ))}
           </div>
         </div>
-      </header>
-      <main className="flex-grow h-full">
+
+        <div className='w-full flex flex-row space-x-2 items-center justify-center'>
+          <div className="flex items-center h-6 w-6 bg-gray-100 p-1 border border-gray-200  text-xs justify-center">
+            R
+          </div>
+          <div className='text-xs'>
+            Reliaplant
+          </div>
+          <div className='text-gray-400'>
+            /
+          </div>
+          <div className='text-xs'>
+            Paros repetitivos en Bomba BPV-340
+          </div>
+        </div>
+        <div className='flex w-full justify-end items-center space-x-4 py-4'>
+          <div className="flex items-center justify-center bg-green-800 text-white rounded-full h-8 w-8">
+            G
+          </div>
+          <button className="flex items-center bg-gray-100 p-2  text-xs">
+            <PrinterIcon className="w-4 h-4 mr-1" />
+            Reporte
+          </button>
+
+          <button className="bg-black text-white text-xs px-4 py-2 ">
+            Guardar
+          </button>
+        </div>
+      </header >
+      < main className="flex-grow h-full" >
         {activeTab === 'analisis' && (
           <div className="w-full h-full min-h-[500px]">
             <RCAArbolFlow />
           </div>
-        )}
+        )
+        }
+         {activeTab === 'info' && (
+          <div className="w-full h-full min-h-[500px]">
+      Info
+          </div>
+        )
+        }
+         {activeTab === 'tareas' && (
+          <div className="w-full h-full min-h-[500px]">
+           tareas
+          </div>
+        )
+        }
+         {activeTab === 'soluciones' && (
+          <div className="w-full h-full min-h-[500px]">
+            soluciones
+          </div>
+        )
+        }
         {/* Aquí puedes agregar el contenido de las otras pestañas */}
-      </main>
-    </div>
+      </main >
+    </div >
   );
 }
