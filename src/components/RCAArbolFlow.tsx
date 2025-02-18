@@ -1,38 +1,57 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import ReactFlow, {
     addEdge,
     Connection,
     Edge,
     Node,
-    useEdgesState,
-    useNodesState,
     useReactFlow,
     ReactFlowProvider,
     OnMove,
     Viewport,
+    applyNodeChanges,
+    applyEdgeChanges,
+    NodeChange,
+    EdgeChange,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import CustomNode from './CustomNode';
 import { hierarchy, tree } from 'd3-hierarchy';
 import NodeInfo from './NodeInfo';
 import ZoomControl from './ZoomControl';
+import { Edge as ReactFlowEdge } from 'reactflow';
 
 const nodeTypes = {
     custom: CustomNode,
 };
 
 interface CustomNodeData {
+    id: string;
     label: string;
     childrenIds: string[];
-    tipo: 'Evento Tope' | 'Modo de falla' | 'Hipótesis' | 'Falla fisica' | 'Error humano' | 'Causa latente' | 'Accion Correctiva';
+    forceToolbarVisible: boolean
+    tipo: 'Evento Tope' | 'Modo de falla' | 'Hipótesis' | 'Falla fisica' | 'Error humano' | 'Causa latente' | 'Solucion';
     onCreateChild: (parentId: string, parentX: number, parentY: number) => void;
 }
 
-function RCAArbolFlowComponent() {
+interface RCAArbolFlowProps {
+    nodes: Node<CustomNodeData>[];
+    setNodes: (nodes: Node<CustomNodeData>[] | ((nodes: Node<CustomNodeData>[]) => Node<CustomNodeData>[])) => void;
+    edges: ReactFlowEdge[];
+    setEdges: (edges: ReactFlowEdge[] | ((edges: ReactFlowEdge[]) => ReactFlowEdge[])) => void;
+}
+
+function RCAArbolFlowComponent({ nodes, setNodes, edges, setEdges }: RCAArbolFlowProps) {
     const nodeIdCounterRef = useRef(2);
-    const [nodes, setNodes, onNodesChange] = useNodesState([]);
-    const [edges, setEdges, onEdgesChange] = useEdgesState([]);
     const organizingRef = useRef(false);
+    const [selectedNode, setSelectedNode] = useState<Node<CustomNodeData> | null>(null);
+
+    const onNodesChange = useCallback((changes: NodeChange[]) => {
+        setNodes((nds) => applyNodeChanges(changes, nds));
+    }, [setNodes]);
+
+    const onEdgesChange = useCallback((changes: EdgeChange[]) => {
+        setEdges((eds: ReactFlowEdge[]) => applyEdgeChanges(changes, eds));
+    }, [setEdges]);
 
     const organizeNodesWithD3 = useCallback(() => {
         if (organizingRef.current) return;
@@ -43,7 +62,7 @@ function RCAArbolFlowComponent() {
             if (!rootNode) return prevNodes;
 
             const makeHierarchy = (node: Node<CustomNodeData>): { id: string; children: any[] } => {
-                return {
+                return { 
                     id: node.id,
                     children: node.data.childrenIds
                         .map(id => prevNodes.find(n => n.id === id))
@@ -93,17 +112,19 @@ function RCAArbolFlowComponent() {
         nodeIdCounterRef.current += 1;
 
         setNodes(prevNodes => {
-            const parentNode = prevNodes.find(node => node.id === parentId);
+            const parentNode = prevNodes.find((node: Node<CustomNodeData>) => node.id === parentId);
             if (!parentNode) return prevNodes;
 
             const newNode: Node<CustomNodeData> = {
                 id: newNodeId,
                 position: { x: parentX - 100, y: parentY + 200 },
                 data: {
+                    id: newNodeId,
                     label: `Nuevo Nodo`,
                     childrenIds: [],
+                    forceToolbarVisible: true,
                     tipo: parentNode.data.tipo === 'Evento Tope' ? 'Modo de falla' : 'Hipótesis',
-                    onCreateChild: handleCreateChildNode
+                    onCreateChild: handleCreateChildNode,
                 },
                 type: 'custom',
             };
@@ -121,7 +142,7 @@ function RCAArbolFlowComponent() {
             ), newNode];
         });
 
-        setEdges(prevEdges => [...prevEdges, {
+        setEdges((prevEdges: ReactFlowEdge[]) => [...prevEdges, {
             id: `e${parentId}-${newNodeId}`,
             source: parentId,
             target: newNodeId,
@@ -131,8 +152,30 @@ function RCAArbolFlowComponent() {
         setTimeout(organizeNodesWithD3, 0);
     }, []);
 
+    const handleNodeClick = useCallback((event: React.MouseEvent, node: Node<CustomNodeData>) => {
+        setSelectedNode(node);
+    }, []);
+
+    const handleUpdateLabel = useCallback((nodeId: string, newLabel: string) => {
+        setNodes((nds) => {
+            const updatedNodes = nds.map((node) =>
+                node.id === nodeId
+                    ? { ...node, data: { ...node.data, label: newLabel } }
+                    : node
+            );
+            // Si el nodo actualizado es el seleccionado, se actualiza selectedNode también
+            if (selectedNode && selectedNode.id === nodeId) {
+                const updatedSelected = updatedNodes.find((node) => node.id === nodeId);
+                if (updatedSelected) {
+                    setSelectedNode(updatedSelected);
+                }
+            }
+            return updatedNodes;
+        });
+    }, [selectedNode, setNodes]);
+
     useEffect(() => {
-        if (typeof window !== 'undefined') {
+        if (nodes.length === 0 && typeof window !== 'undefined') {
             const centerX = window.innerWidth / 2;
             const centerY = window.innerHeight / 4;
 
@@ -145,19 +188,21 @@ function RCAArbolFlowComponent() {
                 data: {
                     label: 'Paros recurrentes en bombas',
                     childrenIds: [],
+                    forceToolbarVisible: false,
                     onCreateChild: handleCreateChildNode,
-                    tipo: 'Evento Tope'
+                    tipo: 'Evento Tope',
+                    id: '1',
                 },
                 type: 'custom',
             };
 
             setNodes([initialNode]);
         }
-    }, [handleCreateChildNode]);
+    }, [handleCreateChildNode, setNodes, nodes]);
 
     const onConnect = useCallback(
         (connection: Connection) => {
-            setEdges((eds) => addEdge(connection, eds));
+            setEdges((eds: ReactFlowEdge[]) => addEdge(connection, eds));
         },
         [setEdges]
     );
@@ -190,7 +235,10 @@ function RCAArbolFlowComponent() {
     return (
         <div className="w-full h-screen bg-gray-100">
             <div className="fixed left-0 top-14 h-full w-80 bg-white shadow-lg z-10 border-r border-gray-200">
-                <NodeInfo />
+                <NodeInfo 
+                    selectedNode={selectedNode?.data} 
+                    onUpdateLabel={handleUpdateLabel}
+                />
             </div>
             <ReactFlow
                 nodes={nodes}
@@ -199,6 +247,7 @@ function RCAArbolFlowComponent() {
                 onEdgesChange={onEdgesChange}
                 onConnect={onConnect}
                 onDoubleClick={onDoubleClick}
+                onNodeClick={handleNodeClick}
                 nodeTypes={nodeTypes}
                 defaultViewport={{ x: 0, y: 0, zoom: 1 }}
                 minZoom={0.5}
@@ -213,10 +262,10 @@ function RCAArbolFlowComponent() {
     );
 }
 
-export default function RCAArbolFlow() {
+export default function RCAArbolFlow(props: RCAArbolFlowProps) {
     return (
         <ReactFlowProvider>
-            <RCAArbolFlowComponent />
+            <RCAArbolFlowComponent {...props} />
         </ReactFlowProvider>
     );
 }
